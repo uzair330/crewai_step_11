@@ -13,42 +13,69 @@ load_dotenv()
 model_name = os.getenv("MODEL")
 
 
-class EvaluatorOptimizerFlow(Flow):
+class AutonomousAgentFlow(Flow):
     model = model_name
 
     @start()
-    def generate_response(self):
+    def initial_prompt(self):
         response = completion(
             model=self.model,
-            messages=[{"role": "user", "content": "Write a draft summary about the benefits of AI in education."}]
+            messages=[{"role": "user", "content": "Generate a creative idea for an AI article."}]
         )
-        draft = response["choices"][0]["message"]["content"].strip()
-        print("Initial Draft Summary:")
-        print(draft)
-        return draft
+        idea = response["choices"][0]["message"]["content"].strip()
+        self.state["idea"] = idea
+        # Set a flag for further branching; for example, if the idea includes the word "technology"
+        self.state["is_tech"] = "technology" in idea.lower()
+        print("Initial Idea:")
+        print(idea)
+        return idea
 
-    @listen(generate_response)
-    def evaluate_and_optimize(self, draft):
-        # In a real-world scenario, you might get human feedback.
-        # Here, we simulate optimization by asking the model for improvements.
+    @router(initial_prompt)
+    def choose_flow(self):
+        # Route the flow based on the idea category.
+        if self.state.get("is_tech"):
+            return "tech_flow"
+        else:
+            return "general_flow"
+
+    @listen("tech_flow")
+    def tech_content(self, idea):
         response = completion(
             model=self.model,
-            messages=[{"role": "user", "content": f"Critically evaluate and improve this summary: {draft}"}]
+            messages=[{"role": "user", "content": f"Develop a detailed outline for an AI article focused on technology: {idea}"}]
         )
-        improved = response["choices"][0]["message"]["content"].strip()
-        print("Improved Summary:")
-        print(improved)
-        return improved
+        outline = response["choices"][0]["message"]["content"].strip()
+        return outline
+
+    @listen("general_flow")
+    def general_content(self, idea):
+        response = completion(
+            model=self.model,
+            messages=[{"role": "user", "content": f"Develop a detailed outline for an AI article: {idea}"}]
+        )
+        outline = response["choices"][0]["message"]["content"].strip()
+        return outline
+
+    @listen(or_(tech_content, general_content))
+    def final_optimization(self, outline):
+        response = completion(
+            model=self.model,
+            messages=[{"role": "user", "content": f"Improve and polish this article outline: {outline}"}]
+        )
+        final_outline = response["choices"][0]["message"]["content"].strip()
+        print("Final Optimized Outline:")
+        print(final_outline)
+        return final_outline
 
 
 def kickoff():
-    evaluatorOptimizer = EvaluatorOptimizerFlow()
-    evaluatorOptimizer.kickoff()
+    autonomousAgentFlow = AutonomousAgentFlow()
+    autonomousAgentFlow.kickoff()
 
 
 def plot():
-    evaluatorOptimizer = EvaluatorOptimizerFlow()
-    evaluatorOptimizer.plot()
+    autonomousAgentFlow = AutonomousAgentFlow()
+    autonomousAgentFlow.plot()
 
 
 if __name__ == "__main__":
